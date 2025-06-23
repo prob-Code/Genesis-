@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Location Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial; }
+        #map { width: 100%; height: 100vh; }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            max-width: 250px;
+        }
+        .coordinates {
+            font-family: monospace;
+            color: #333;
+        }
+        .status { color: #d9534f; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h3>Live Location Tracker</h3>
+        <div><span class="status">Status:</span> <span id="status">Active</span></div>
+        <div><span class="coordinates">Lat: <span id="lat">--</span></span></div>
+        <div><span class="coordinates">Lng: <span id="lng">--</span></span></div>
+        <div>Accuracy: <span id="acc">--</span> meters</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Southeast Asia
+        var map = L.map('map').setView([14.0860746, 100.608406], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        var marker, circle, watchId;
+
+        function updatePosition(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const acc = position.coords.accuracy;
+
+            // Update display
+            document.getElementById('lat').textContent = lat.toFixed(6);
+            document.getElementById('lng').textContent = lng.toFixed(6);
+            document.getElementById('acc').textContent = Math.round(acc);
+            document.getElementById('status').textContent = "Tracking";
+            document.getElementById('status').style.color = "#5cb85c";
+
+            // Update map
+            if (marker) map.removeLayer(marker);
+            if (circle) map.removeLayer(circle);
+            
+            marker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`Your position (accuracy: ${Math.round(acc)}m)`).openPopup();
+            
+            circle = L.circle([lat, lng], {
+                radius: acc,
+                color: '#3388ff',
+                fillOpacity: 0.2
+            }).addTo(map);
+            
+            map.setView([lat, lng], Math.max(15, map.getZoom()));
+        }
+
+        function handleError(error) {
+            let msg = "";
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    msg = "Permission denied. Allow location access.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    msg = "Location unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    msg = "Request timed out.";
+                    break;
+                default:
+                    msg = "Unknown error.";
+            }
+            document.getElementById('status').textContent = msg;
+            document.getElementById('status').style.color = "#d9534f";
+        }
+
+        if (navigator.geolocation) {
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            };
+            
+            // Get initial position
+            navigator.geolocation.getCurrentPosition(
+                updatePosition, 
+                handleError, 
+                options
+            );
+            
+            // Set up continuous tracking
+            watchId = navigator.geolocation.watchPosition(
+                updatePosition,
+                handleError,
+                options
+            );
+        } else {
+            document.getElementById('status').textContent = 
+                "Geolocation not supported by this browser.";
+        }
+
+        // Clean up on page close
+        window.addEventListener('beforeunload', () => {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+        });
+    </script>
+</body>
+</html>
